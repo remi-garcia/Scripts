@@ -18,6 +18,10 @@ sim_file=
 bsim_file=
 ooc_entities=()
 
+do_not_run=false
+results_file=$(realpath "results.csv")
+delete_after=true
+
 
 ############################################################
 # Functions                                                #
@@ -29,17 +33,21 @@ show_help()
     echo "options:"
     echo "h     help                Print this help."
     echo "v     verbose             Verbose mode."
-    echo "p     project             Project name (default: ${project_name})."
-    echo "vhdl                      Main VHDL file."
-    echo "avhdl                     Additional VHDL files."
-    echo "      part                Part name (default: none)."
+    echo "p     project=name        Project name (default: ${project_name})."
+    echo "vhdl=file                 Main VHDL file."
+    echo "avhdl=file                Additional VHDL files."
+    echo "      part=part           Part name (default: none)."
     echo "i     implement           Do implementation (default: synthesis only)."
     echo "ooc                       Out of context implementation."
     echo "f     frequency           Frequency (default: ${frequency}MHz)."
     echo "d     delay_registers     Get delay between registers (ignore io)."
     echo "s                         File for simulation."
     echo "bs                        File for behavioral simulation."
-    echo "      ooc_entity          Entity to implement in ooc mode."
+    echo "      ooc_entity=entity   Entity to implement in ooc mode."
+    echo
+    echo "t     only_tcl            Do not run vivado, just prepare the project."
+    echo "r     results=file        Read vivado results and write them (default file: $(basename ${results_file}))."
+    echo "k     keep_project        Do not delete the project after saving vivado results."
     echo
 }
 
@@ -226,6 +234,26 @@ while :; do
         --ooc_entity=)         # Handle the case of an empty --ooc_entity=
             die 'ERROR: "--ooc_entity" requires a non-empty option argument.'
             ;;
+        -t|--only_tcl)
+            do_not_run=true
+            ;;
+        -r|--read_results)       # Takes an option argument; ensure it has been specified.
+            if [ "$2" ]; then
+                results_file=$(realpath "$2")
+                shift
+            else
+                die 'ERROR: "--read_results" requires a non-empty option argument.'
+            fi
+            ;;
+        --read_results=?*)
+            results_file=$(realpath "${1#*=}") # Delete everything up to "=" and assign the remainder.
+            ;;
+        -r|--read_results=)         # Handle the case of an empty --read_results=
+            die 'ERROR: "--read_results" requires a non-empty option argument.'
+            ;;
+        -k|--keep_project)
+            delete_after=false
+            ;;
         --)              # End of all options.
             shift
             break
@@ -243,11 +271,11 @@ IFS="$OLD_IFS"
 
 if [ -z "$main_vhdl_file" ]; then
     echo -e "Missing main vhdl file"
-    exit
+    exit 1
 fi
 if [ -z "${part}" ]; then
     echo -e "Missing 'part' argument"
-    exit
+    exit 1
 fi
 
 remaining_args=$@
@@ -278,6 +306,10 @@ else
         log "\t- ${val}"
     done
 fi
+log "only tcl:                  ${do_not_run}"
+log "save results:              ${results_file}"
+log "delete project after run:  ${delete_after}"
+
 
 
 
@@ -421,17 +453,27 @@ fi
 
 echo -e "report_power -file ${power_report}" >> ${tcl_script}
 
+if [ $do_not_run = true ]; then
+    cd "${basedir}"
+    exit
+fi
+
+vivado_output_file=$(realpath "vivado_current_run.log")
 vivado_command="vivado -mode batch -source ${tcl_script}"
 log "Run vivado: ${vivado_command}"
-eval ${vivado_command}
+eval ${vivado_command} > ${vivado_output_file}
 retVal=$?
 if [ $retVal -ne 0 ]; then
     if [ $retVal -eq 127 ]; then
-        echo "Vivado not found on system"
+        echo -e "Vivado not found on system"
+        exit 1
     else
-        echo "Vivado errored"
+        echo -e "Vivado errored"
+        exit 1
     fi
 else
+    cat ${utilization_report} >> ${vivado_output_file}
+    cat ${timing_report} >> ${vivado_output_file}
     if [ $verbose = true ]; then
         log "Utilization report:"
         cat ${utilization_report}
@@ -441,16 +483,57 @@ else
 fi
 
 
-
-#TODO Read results
-
 #TODO Error with ooc_entities
 
 
+if [ ! -f "${results_file}" ]; then
+    echo "Project name;LUTS;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/0 (dyn)" > $results_file
+fi
 
+# Project name
+echo -ne "${project_name};" >> ${results_file}
 
+# LUTs
+echo -ne $(grep -m 1 "Slice LUTs" ${vivado_output_file} | awk '{print $5}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+# DSPs
+echo -ne $(grep -m 1 "DSPs  " ${vivado_output_file} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+# Delay
+echo -ne $(grep -m 1 "Data Path Delay" ${vivado_output_file} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
 
-
+# Power
+# total power
+echo -ne $(grep -m 1 "Total On-Chip Power (W)" ${power_report} | awk '{print $7}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+# static power
+echo -ne $(grep -m 1 "Device Static (W)" ${power_report} | awk '{print $6}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#dynamic power
+echo -ne $(grep -m 1 "Dynamic (W)" ${power_report} | awk '{print $5}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#clocks
+echo -ne $(grep -m 1 "Clocks" ${power_report} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#slice logic
+echo -ne $(grep -m 1 "Slice Logic" ${power_report} | awk '{print $5}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#signals
+echo -ne $(grep -m 1 "Signals" ${power_report} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#DSPs
+echo -ne $(grep -m 1 "DSPs" ${power_report} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+#I/O
+echo -ne $(grep -m 1 "I/O            |" ${power_report} | awk '{print $4}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+echo -e "" >> ${results_file}
 
 
 cd "${basedir}"
+
+if [ $delete_after = true ]; then
+    rm -r "${workdir}"
+fi
+
