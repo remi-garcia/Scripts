@@ -382,7 +382,6 @@ if [ -n "${ooc_entities}" ]; then
     echo -e "set_property USED_IN {out_of_context synthesis implementation}  [get_files ${xdc_file}]" >> ${tcl_script}
     for curr_ooc_entity in "${ooc_entities[@]}"; do
         echo -e "create_fileset -blockset -define_from ${curr_ooc_entity} ${curr_ooc_entity}" >> ${tcl_script}
-        echo -e "move_files -fileset ${curr_ooc_entity} [get_files ${xdc_file}]" >> ${tcl_script}
     done
 fi
 
