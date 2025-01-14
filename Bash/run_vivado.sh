@@ -345,6 +345,7 @@ tcl_script="${workdir}/${project_name}.tcl"
 log "Write tcl script: ${tcl_script}"
 echo -e "# Generated" >> ${tcl_script}
 echo -e "create_project ${project_name} -part ${part}" >> ${tcl_script}
+echo -e "set_property target_language VHDL [current_project]" >> ${tcl_script}
 for curr_srcfile in "${srcfiles}"/*; do
     if [ -f "${curr_srcfile}" ]; then
         echo -e "add_files -fileset sources_1 -norecurse ${curr_srcfile}" >> ${tcl_script}
@@ -389,6 +390,7 @@ fi
 
 echo -e "update_compile_order -fileset sources_1" >> ${tcl_script}
 #echo -e "synth_design -mode out_of_context -global_retiming on" >> ${tcl_script}
+echo -e "set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_context} -objects [get_runs synth_1]" >> ${tcl_script}
 echo -e "launch_runs synth_1 -jobs 6" >> ${tcl_script}
 echo -e "wait_on_run synth_1" >> ${tcl_script}
 echo -e "open_run synth_1 -name synth_1" >> ${tcl_script}
@@ -491,7 +493,7 @@ fi
 
 
 if [ ! -f "${results_file}" ]; then
-    echo "Project name;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/0 (dyn)" > $results_file
+    echo "Project name;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/O (dyn)" > $results_file
 fi
 
 # Project name
