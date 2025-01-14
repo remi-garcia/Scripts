@@ -388,7 +388,10 @@ fi
 
 
 echo -e "update_compile_order -fileset sources_1" >> ${tcl_script}
-echo -e "synth_design -mode out_of_context -retiming" >> ${tcl_script}
+#echo -e "synth_design -mode out_of_context -global_retiming on" >> ${tcl_script}
+echo -e "launch_runs synth_1 -jobs 6" >> ${tcl_script}
+echo -e "wait_on_run synth_1" >> ${tcl_script}
+echo -e "open_run synth_1 -name synth_1" >> ${tcl_script}
 
 reports_folder="${workdir}/reports"
 mkdir -p "${reports_folder}"
