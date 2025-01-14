@@ -380,7 +380,7 @@ if [ ! -z "${bsim_file}" ]; then
 fi
 
 if [ -n "${ooc_entities}" ]; then
-    echo -e "set_property USED_IN {out_of_context synthesis implementation}  [get_files ${xdc_file}]" >> ${tcl_script}
+    echo -e "set_property USED_IN {out_of_context synthesis implementation} [get_files ${xdc_file}]" >> ${tcl_script}
     for curr_ooc_entity in "${ooc_entities[@]}"; do
         echo -e "create_fileset -blockset -define_from ${curr_ooc_entity} ${curr_ooc_entity}" >> ${tcl_script}
     done
@@ -403,10 +403,12 @@ power_report="${reports_folder}/power_report.rpt"
 if [ $do_implementation = true ]; then
     utilization_report="${reports_folder}/utilization_placed.rpt"
     timing_report="${reports_folder}/timing_placed.rpt"
-    if [ $do_ooc  = true ]; then
+    if [ $do_ooc = true ]; then
         echo -e "write_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
         echo -e "read_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
-        echo -e "link_design -mode out_of_context" >> ${tcl_script}
+        #https://adaptivesupport.amd.com/s/question/0D52E00006hpKnSSAU/
+        #This does not seem necessary
+        echo -e "link_design -mode out_of_context -quiet" >> ${tcl_script}
     fi
     echo -e "launch_runs impl_1" >> ${tcl_script}
     echo -e "wait_on_run impl_1" >> ${tcl_script}
@@ -489,9 +491,6 @@ else
 fi
 
 
-#TODO Error with ooc_entities
-
-
 if [ ! -f "${results_file}" ]; then
     echo "Project name;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/O (dyn)" > $results_file
 fi
@@ -535,7 +534,7 @@ echo -ne ";" >> ${results_file}
 echo -ne $(grep -m 1 "DSPs" ${power_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 #I/O
-echo -ne $(grep -m 1 "I/O            |" ${power_report} | awk '{print $4}') >> ${results_file}
+echo -ne $(grep -m 1 "I/O      " ${power_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 echo -e "" >> ${results_file}
 
