@@ -402,8 +402,8 @@ if [ $do_implementation = true ]; then
     utilization_report="${reports_folder}/utilization_placed.rpt"
     timing_report="${reports_folder}/timing_placed.rpt"
     if [ $do_ooc  = true ]; then
-        echo -e "write_edif ${main_entity}.edf" >> ${tcl_script}
-        echo -e "read_edif ${main_entity}.edf" >> ${tcl_script}
+        echo -e "write_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
+        echo -e "read_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
         echo -e "link_design -mode out_of_context" >> ${tcl_script}
     fi
     echo -e "launch_runs impl_1" >> ${tcl_script}
