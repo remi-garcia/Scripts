@@ -465,7 +465,7 @@ fi
 vivado_output_file=$(realpath "vivado_current_run.log")
 vivado_command="vivado -mode batch -source ${tcl_script}"
 log "Run vivado: ${vivado_command}"
-eval ${vivado_command} > ${vivado_output_file}
+eval ${vivado_command} > ${vivado_output_file} 2>&1
 retVal=$?
 if [ $retVal -ne 0 ]; then
     if [ $retVal -eq 127 ]; then
