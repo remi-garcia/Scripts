@@ -121,10 +121,10 @@ while :; do
                 die 'ERROR: "--project_name" requires a non-empty option argument.'
             fi
             ;;
-        -p|--project=?*)
+        -p=?*|--project=?*)
             project_name=${1#*=} # Delete everything up to "=" and assign the remainder.
             ;;
-        -p|--project=)         # Handle the case of an empty --project=
+        -p=|--project=)         # Handle the case of an empty --project=
             die 'ERROR: "--project" requires a non-empty option argument.'
             ;;
         -vhdl|--vhdl)       # Takes an option argument; ensure it has been specified.
@@ -135,10 +135,10 @@ while :; do
                 die 'ERROR: "--vhdl" requires a non-empty option argument.'
             fi
             ;;
-        -vhdl|--vhdl=?*)
+        -vhdl=?*|--vhdl=?*)
             main_vhdl_file=$(realpath "${1#*=}") # Delete everything up to "=" and assign the remainder.
             ;;
-        -vhdl|--vhdl=)         # Handle the case of an empty --vhdl=
+        -vhdl=|--vhdl=)         # Handle the case of an empty --vhdl=
             die 'ERROR: "--vhdl" requires a non-empty option argument.'
             ;;
         -avhdl|--avhdl)       # Takes an option argument; ensure it has been specified.
@@ -149,10 +149,10 @@ while :; do
                 die 'ERROR: "--vhdl" requires a non-empty option argument.'
             fi
             ;;
-        -avhdl|--avhdl=?*)
+        -avhdl=?*|--avhdl=?*)
             additional_vhdl_files+=($(realpath "${1#*=}")) # Delete everything up to "=" and assign the remainder.
             ;;
-        -avhdl|--avhdl=)         # Handle the case of an empty --vhdl=
+        -avhdl=|--avhdl=)         # Handle the case of an empty --vhdl=
             die 'ERROR: "--vhdl" requires a non-empty option argument.'
             ;;
         --part)       # Takes an option argument; ensure it has been specified.
@@ -183,10 +183,10 @@ while :; do
                 die 'ERROR: "--frequency" requires a non-empty option argument.'
             fi
             ;;
-        --frequency=?*)
+        -f=?*|--frequency=?*)
             frequency=${1#*=} # Delete everything up to "=" and assign the remainder.
             ;;
-        --frequency=)         # Handle the case of an empty --frequency=
+        -f=|--frequency=)         # Handle the case of an empty --frequency=
             die 'ERROR: "--frequency" requires a non-empty option argument.'
             ;;
         -d|--delay_registers)
@@ -245,10 +245,10 @@ while :; do
                 die 'ERROR: "--read_results" requires a non-empty option argument.'
             fi
             ;;
-        --read_results=?*)
+        -r=?*|--read_results=?*)
             results_file=$(realpath "${1#*=}") # Delete everything up to "=" and assign the remainder.
             ;;
-        -r|--read_results=)         # Handle the case of an empty --read_results=
+        -r=|--read_results=)         # Handle the case of an empty --read_results=
             die 'ERROR: "--read_results" requires a non-empty option argument.'
             ;;
         -k|--keep_project)
@@ -315,7 +315,9 @@ log "delete project after run:  ${delete_after}"
 
 basedir="$(pwd)"
 workdir="$(pwd)/${project_name}"
-rm -r "${workdir}"
+if [ -d "$workdir" ]; then
+    rm -r "${workdir}"
+fi
 mkdir -p "${workdir}"
 srcfiles="${workdir}/src_files"
 mkdir -p "${srcfiles}"
