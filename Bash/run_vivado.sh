@@ -491,7 +491,7 @@ fi
 
 
 if [ ! -f "${results_file}" ]; then
-    echo "Project name;LUTS;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/0 (dyn)" > $results_file
+    echo "Project name;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/0 (dyn)" > $results_file
 fi
 
 # Project name
@@ -499,6 +499,9 @@ echo -ne "${project_name};" >> ${results_file}
 
 # LUTs
 echo -ne $(grep -m 1 "Slice LUTs" ${vivado_output_file} | awk '{print $5}') >> ${results_file}
+echo -ne ";" >> ${results_file}
+# FF
+echo -ne $(grep -m 1 "Slice Registers" $vivado_output_file | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # DSPs
 echo -ne $(grep -m 1 "DSPs  " ${vivado_output_file} | awk '{print $4}') >> ${results_file}
