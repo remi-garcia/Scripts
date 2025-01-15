@@ -6,7 +6,7 @@ include("$(@__DIR__())/run_with_timeout.jl")
 
 using AdderGraphs
 
-function generate_rpag_cmd(v::Vector{Int}; with_register_cost::Bool=false, nb_extra_stages::Int=0)
+function generate_rpag_cmd(v::Vector{Int}; with_register_cost::Bool=false, nb_extra_stages::Int=0, kwargs...)
     return "rpag $(with_register_cost ? "" : "--cost_model=hl_min_ad ")$(nb_extra_stages==0 ? "" : "--no_of_extra_stages=$(nb_extra_stages) ")"*join(v, " ")
 end
 
@@ -23,8 +23,9 @@ function rpagcall(rpag_cmd::String; use_rpag_lib::Bool=false, kwargs...)
             else
                 try
                     rpag_success = run_with_timeout(`$(argv)`; kwargs...)
-                catch
                     rpag_success = true
+                catch
+                    rpag_success = false
                 end
             end
         end
@@ -39,11 +40,17 @@ function rpag(C::Vector{Int}; kwargs...)
         return AdderGraph()
     end
     str_result, rpag_success = rpagcall(generate_rpag_cmd(C; kwargs...); kwargs...)
-    if !rpag_success
+    # RPAG exit status is 1 even in case of success
+    # if !rpag_success
+    #     @warn "rpag failed to produce an adder graph"
+    #     return AdderGraph()
+    # end
+    s = split(str_result, "\n")
+    # Workaround
+    if isempty(s) || (length(s) == 1 && isempty(s[1]))
         @warn "rpag failed to produce an adder graph"
         return AdderGraph()
     end
-    s = split(str_result, "\n")
     addergraph_str = ""
     for val in s
         if startswith(val, "pipelined_adder_graph=")
