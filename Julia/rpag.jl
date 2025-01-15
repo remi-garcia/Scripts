@@ -1,6 +1,9 @@
 # rpag.jl
 # Run rpag and read the output with AdderGraphs
 
+# Requirement: run_with_timeout
+include("$(@__DIR__())/run_with_timeout.jl")
+
 using AdderGraphs
 
 function generate_rpag_cmd(v::Vector{Int}; with_register_cost::Bool=false, nb_extra_stages::Int=0)
@@ -11,6 +14,7 @@ end
 function rpagcall(rpag_cmd::String; use_rpag_lib::Bool=false, kwargs...)
     filename = tempname()
     argv = Vector{String}(string.(split(rpag_cmd)))
+    rpag_success = true
     open(filename, "w") do fileout
         redirect_stdout(fileout) do
             if use_rpag_lib
@@ -18,23 +22,28 @@ function rpagcall(rpag_cmd::String; use_rpag_lib::Bool=false, kwargs...)
                 Base.Libc.flush_cstdio()
             else
                 try
-                    run(`$(argv)`)
+                    rpag_success = run_with_timeout(`$(argv)`; kwargs...)
                 catch
+                    rpag_success = true
                 end
             end
         end
     end
-    return read(filename, String)
+    return read(filename, String), rpag_success
 end
 
 
 function rpag(C::Vector{Int}; kwargs...)
-    #if isempty(Libc.find_library("librpag"))
     if isempty(Base.Libc.Libdl.find_library("librpag"))
         @warn "librpag not found"
         return AdderGraph()
     end
-    s = split(rpagcall(generate_rpag_cmd(C; kwargs...); kwargs...), "\n")
+    str_result, rpag_success = rpagcall(generate_rpag_cmd(C; kwargs...); kwargs...)
+    if !rpag_success
+        @warn "rpag failed to produce an adder graph"
+        return AdderGraph()
+    end
+    s = split(str_result, "\n")
     addergraph_str = ""
     for val in s
         if startswith(val, "pipelined_adder_graph=")
