@@ -1,7 +1,7 @@
 # run with timeout
 # https://discourse.julialang.org/t/53876/3
 
-function run_with_timeout(command; timelimit::T=0.0, kwargs...) where T <: Real
+function run_with_timeout(command; timelimit::T=0.0, sleepstep::S=0.1, kwargs...) where T <: Real where S <: Real
     if iszero(timelimit)
         cmd = run(command; wait=true)
         return success(cmd)
@@ -15,7 +15,7 @@ function run_with_timeout(command; timelimit::T=0.0, kwargs...) where T <: Real
             println(read(pout, String))
             return success(cmd)
         end
-        sleep(0.1)
+        sleep(sleepstep)
     end
     if !process_running(cmd)
         close(pout.in)
