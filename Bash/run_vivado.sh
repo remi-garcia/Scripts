@@ -363,6 +363,7 @@ if [ ! -z "${bsim_file}" ]; then
     local_bsim_file="${srcbsimfolder}/$(basename ${bsim_file})"
     log "Behavioral simulation"
     echo -e "# For behavioral simulation" >> ${tcl_script}
+    echo -e "create_fileset -simset bsim_1" >> ${tcl_script}
     echo -e "add_files -fileset bsim_1 -norecurse ${local_bsim_file}" >> ${tcl_script}
     entity_bsimulation=$(get_last_entity "${local_bsim_file}")
     echo -e "set_property top ${entity_bsimulation} [get_filesets bsim_1]" >> ${tcl_script}
