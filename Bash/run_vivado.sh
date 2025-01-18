@@ -46,7 +46,7 @@ show_help()
     echo "      ooc_entity=entity   Entity to implement in ooc mode."
     echo
     echo "t     only_tcl            Do not run vivado, just prepare the project."
-    echo "r     results=file        Read vivado results and write them (default file: $(basename ${results_file}))."
+    echo "r     read_results=file   Read vivado results and write them (default file: $(basename ${results_file}))."
     echo "k     keep_project        Do not delete the project after saving vivado results."
     echo
 }
