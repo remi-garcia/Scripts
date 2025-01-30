@@ -93,7 +93,7 @@ function warmstart!(model::Model; warmstart_timelimit::Float64=60.0, kwargs...)
     if !isnothing(time_limit_sec(model))
         timelimit = time_limit_sec(model)
     end
-    set_time_limit_sec(model, warmstart_timelimit.0)
+    set_time_limit_sec(model, warmstart_timelimit)
     optimize!(model)
 
     ws_values = save_warmstart(model)
