@@ -400,10 +400,12 @@ reports_folder="${workdir}/reports"
 mkdir -p "${reports_folder}"
 utilization_report=""
 timing_report=""
+pulse_report=""
 power_report="${reports_folder}/power_report.rpt"
 if [ $do_implementation = true ]; then
     utilization_report="${reports_folder}/utilization_placed.rpt"
     timing_report="${reports_folder}/timing_placed.rpt"
+    pulse_report="${reports_folder}/pulse_placed.rpt"
     if [ $do_ooc = true ]; then
         echo -e "write_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
         echo -e "read_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
@@ -417,6 +419,7 @@ if [ $do_implementation = true ]; then
 else
     utilization_report="${reports_folder}/utilization_synth.rpt"
     timing_report="${reports_folder}/timing_synth.rpt"
+    pulse_report="${reports_folder}/pulse_synth.rpt"
 fi
 
 echo -e "set_property IOB FALSE [all_inputs]" >> ${tcl_script}
@@ -427,6 +430,12 @@ echo -e "report_utilization -file ${utilization_report}" >> ${tcl_script}
 
 if [ $delay_between_registers = true ]; then
     echo -e "report_timing -file ${timing_report} -from [all_registers] -to [all_registers]" >> ${tcl_script}
+    #https://adaptivesupport.amd.com/s/question/0D54U00008KxsUuSAJ/
+    #https://adaptivesupport.amd.com/s/question/0D52E00006hpZKRSA2/
+    echo -e "set paths [get_timing_paths -from [all_registers] -to [all_registers]]" >> ${tcl_script}
+    echo -e "if {[llength \$paths] == 0} {" >> ${tcl_script}
+    echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
+    echo -e "}" >> ${tcl_script}
 else
     echo -e "report_timing -file ${timing_report}" >> ${tcl_script}
 fi
@@ -483,11 +492,19 @@ if [ $retVal -ne 0 ]; then
 else
     cat ${utilization_report} >> ${vivado_output_file}
     cat ${timing_report} >> ${vivado_output_file}
+    if [ -f "${pulse_report}" ]; then
+        cat ${pulse_report} >> ${vivado_output_file}
+    fi
+    cat ${power_report} >> ${vivado_output_file}
     if [ $verbose = true ]; then
         log "Utilization report:"
         cat ${utilization_report}
         log "Timing report:"
         cat ${timing_report}
+        if [ -f "${pulse_report}" ]; then
+            log "Pulse report:"
+            cat ${pulse_report}
+        fi
     fi
 fi
 
@@ -500,16 +517,21 @@ fi
 echo -ne "${project_name};" >> ${results_file}
 
 # LUTs
-echo -ne $(grep -m 1 "Slice LUTs" ${vivado_output_file} | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 "Slice LUTs" ${utilization_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # FF
-echo -ne $(grep -m 1 "Slice Registers" $vivado_output_file | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 "Slice Registers" $utilization_report | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # DSPs
-echo -ne $(grep -m 1 "DSPs  " ${vivado_output_file} | awk '{print $4}') >> ${results_file}
+echo -ne $(grep -m 1 "DSPs  " ${utilization_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # Delay
-echo -ne $(grep -m 1 "Data Path Delay" ${vivado_output_file} | awk '{print $4}') >> ${results_file}
+if [ ! -f "${pulse_report}" ]; then
+    echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}') >> ${results_file}
+else
+    echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}') >> ${results_file}
+    echo -ne "ns" >> ${results_file}
+fi
 echo -ne ";" >> ${results_file}
 
 # Power
