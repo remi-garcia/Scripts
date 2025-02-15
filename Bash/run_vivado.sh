@@ -432,10 +432,11 @@ if [ $delay_between_registers = true ]; then
     echo -e "report_timing -file ${timing_report} -from [all_registers] -to [all_registers]" >> ${tcl_script}
     #https://adaptivesupport.amd.com/s/question/0D54U00008KxsUuSAJ/
     #https://adaptivesupport.amd.com/s/question/0D52E00006hpZKRSA2/
-    echo -e "set paths [get_timing_paths -from [all_registers] -to [all_registers]]" >> ${tcl_script}
-    echo -e "if {[llength \$paths] == 0} {" >> ${tcl_script}
-    echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
-    echo -e "}" >> ${tcl_script}
+    #echo -e "set paths [get_timing_paths -from [all_registers] -to [all_registers]]" >> ${tcl_script}
+    #echo -e "if {[llength \$paths] == 0} {" >> ${tcl_script}
+    #echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
+    #echo -e "}" >> ${tcl_script}
+    echo -e "report_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
 else
     echo -e "report_timing -file ${timing_report}" >> ${tcl_script}
 fi
@@ -526,14 +527,22 @@ echo -ne ";" >> ${results_file}
 echo -ne $(grep -m 1 "DSPs  " ${utilization_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # Delay
-if [ ! -f "${pulse_report}" ]; then
-    echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}') >> ${results_file}
+#if [ ! -f "${pulse_report}" ]; then
+#    echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}') >> ${results_file}
+#else
+#    echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}') >> ${results_file}
+#    echo -ne "ns" >> ${results_file}
+#fi
+timing_delay=`echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}')`
+timing_delay=${timing_delay::-2}
+pulse_delay=`echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}')`
+if (( $(echo "${timing_delay} > ${pulse_delay}" | bc -l) )); then
+    echo -ne "${timing_delay}" >> ${results_file}
 else
-    echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}') >> ${results_file}
-    echo -ne "ns" >> ${results_file}
+    echo -ne "${pulse_delay}" >> ${results_file}
 fi
+echo -ne "ns" >> ${results_file}
 echo -ne ";" >> ${results_file}
-
 # Power
 # total power
 echo -ne $(grep -m 1 "Total On-Chip Power (W)" ${power_report} | awk '{print $7}') >> ${results_file}
