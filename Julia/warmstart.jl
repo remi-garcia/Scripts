@@ -85,7 +85,8 @@ end
 
 
 
-function warmstart!(model::Model; warmstart_timelimit::Float64=60.0, kwargs...)
+function warmstart!(model::Model; warmstart_timelimit::T=60.0, kwargs...) where T <: Real
+    warmstart_timelimit_FP = Float64(warmstart_timelimit)
     model_data = store_model_data(model)
     fix_warmstart!(model)
 
@@ -93,7 +94,7 @@ function warmstart!(model::Model; warmstart_timelimit::Float64=60.0, kwargs...)
     if !isnothing(time_limit_sec(model))
         timelimit = time_limit_sec(model)
     end
-    set_time_limit_sec(model, warmstart_timelimit)
+    set_time_limit_sec(model, warmstart_timelimit_FP)
     optimize!(model)
 
     ws_values = save_warmstart(model)
@@ -106,4 +107,3 @@ function warmstart!(model::Model; warmstart_timelimit::Float64=60.0, kwargs...)
     return model
 end
 
-warmstart!(model::Model; warmstart_timelimit::Int, kwargs...) = warmstart!(model; warmstart_timelimit=Float64(warmstart_timelimit), kwargs...)
