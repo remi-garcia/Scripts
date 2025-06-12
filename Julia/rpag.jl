@@ -35,6 +35,7 @@ function rpag(C::Vector{Int}; kwargs...)
         return AdderGraph()
     end
     filename = tempname()
+    touch(filename)
     str_result, rpag_success = rpagcall(generate_rpag_cmd(C; file_output=filename, kwargs...); file_output=filename, kwargs...)
     s = split(str_result, "\n")
     # Workaround
