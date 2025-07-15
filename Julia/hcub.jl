@@ -18,11 +18,7 @@ function hcubcall(hcub_cmd::String; kwargs...)
     hcub_success = true
     open(filename, "w") do fileout
         redirect_stdout(fileout) do
-            try
-                hcub_success = run_with_timeout(`$(argv)`; kwargs...)
-            catch
-                hcub_success = false
-            end
+            hcub_success = run_with_timeout(`$(argv)`; kwargs...)
         end
     end
     return read(filename, String), hcub_success

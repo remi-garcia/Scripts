@@ -26,7 +26,16 @@ function run_with_timeout(command; timelimit::T=0.0, sleepstep::S=0.1, kwargs...
     curr_pid = getpid(cmd)
     killcmd = "pkill -P $(curr_pid)"
     argv = Vector{String}(string.(split(killcmd)))
-    run(`$(argv)`)
+    try
+        # For Hcub
+        run(`$(argv)`)
+    catch
+        # For RPAG
+        kill(cmd)
+    end
+    if process_running(cmd)
+        sleep(0.1)
+    end
     @assert !process_running(cmd)
     return false
 end

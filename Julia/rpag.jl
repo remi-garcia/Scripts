@@ -18,12 +18,7 @@ function rpagcall(rpag_cmd::String; file_output::String, use_rpag_lib::Bool=fals
         ccall((:main, "librpag"), Cint, (Cint, Ptr{Ptr{UInt8}}), length(argv), argv)
         Base.Libc.flush_cstdio()
     else
-        try
-            rpag_success = run_with_timeout(`$(argv)`; kwargs...)
-            rpag_success = true
-        catch
-            rpag_success = false
-        end
+        rpag_success = run_with_timeout(`$(argv)`; kwargs...)
     end
     return read(file_output, String), rpag_success
 end
