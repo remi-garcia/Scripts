@@ -14,6 +14,7 @@ do_implementation=false
 do_ooc=false
 frequency=1
 delay_between_registers=false
+do_simulation=false
 sim_file=
 bsim_file=
 ooc_entities=()
@@ -281,6 +282,12 @@ fi
 remaining_args=$@
 log "Ignored remaining args=\"${remaining_args}\""
 
+if [ ! -z "${sim_file}" ]; then
+    if [ $do_implementation = true ]; then
+        do_simulation=true
+    fi
+fi
+
 
 log "Verbose mode"
 log "project_name:              ${project_name}"
@@ -388,6 +395,14 @@ if [ -n "${ooc_entities}" ]; then
 fi
 
 
+reports_folder="${workdir}/reports"
+mkdir -p "${reports_folder}"
+power_report="${reports_folder}/power_report.rpt"
+utilization_report_synth="${reports_folder}/utilization_synth.rpt"
+utilization_report_impl="${reports_folder}/utilization_placed.rpt"
+timing_report="${reports_folder}/timing.rpt"
+pulse_report="${reports_folder}/pulse.rpt"
+
 
 echo -e "update_compile_order -fileset sources_1" >> ${tcl_script}
 #echo -e "synth_design -mode out_of_context -global_retiming on" >> ${tcl_script}
@@ -395,37 +410,71 @@ echo -e "set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode
 echo -e "launch_runs synth_1 -jobs 6" >> ${tcl_script}
 echo -e "wait_on_run synth_1" >> ${tcl_script}
 echo -e "open_run synth_1 -name synth_1" >> ${tcl_script}
-
-reports_folder="${workdir}/reports"
-mkdir -p "${reports_folder}"
-utilization_report=""
-timing_report=""
-pulse_report=""
-power_report="${reports_folder}/power_report.rpt"
-if [ $do_implementation = true ]; then
-    utilization_report="${reports_folder}/utilization_placed.rpt"
-    timing_report="${reports_folder}/timing_placed.rpt"
-    pulse_report="${reports_folder}/pulse_placed.rpt"
-    if [ $do_ooc = true ]; then
-        echo -e "write_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
-        echo -e "read_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
-        #https://adaptivesupport.amd.com/s/question/0D52E00006hpKnSSAU/
-        #This does not seem necessary
-        echo -e "link_design -mode out_of_context -quiet" >> ${tcl_script}
-    fi
-    echo -e "launch_runs impl_1" >> ${tcl_script}
-    echo -e "wait_on_run impl_1" >> ${tcl_script}
-    echo -e "open_run impl_1 -name impl_1" >> ${tcl_script}
-else
-    utilization_report="${reports_folder}/utilization_synth.rpt"
-    timing_report="${reports_folder}/timing_synth.rpt"
-    pulse_report="${reports_folder}/pulse_synth.rpt"
-fi
-
 echo -e "set_property IOB FALSE [all_inputs]" >> ${tcl_script}
 echo -e "set_property IOB FALSE [all_outputs]" >> ${tcl_script}
+echo -e "report_utilization -file ${utilization_report_synth}" >> ${tcl_script}
 
-echo -e "report_utilization -file ${utilization_report}" >> ${tcl_script}
+echo -e "set util_str [report_utilization -return_string]" >> ${tcl_script}
+echo -e "# Generate utilization report and capture its output" >> ${tcl_script}
+echo -e "proc extract_used_and_total {util_str resource} {" >> ${tcl_script}
+echo -e "\t# Escape the resource name to work in regex" >> ${tcl_script}
+echo -e "\tset escaped_resource [string map {\" \" \"\\\\\\\\s+\"} \$resource]" >> ${tcl_script}
+echo -e "\tset pattern \"^\\\\\\\\|\\\\\\\\s*\$escaped_resource\\\\\\\\*?\\\\\\\\s*\\\\\\\\|\\\\\\\\s*(\\\\\\\\d+)\\\\\\\\s+\\\\\\\\|\\\\\\\\s*\\\\\\\\d+\\\\\\\\s+\\\\\\\\|\\\\\\\\s*\\\\\\\\d+\\\\\\\\s+\\\\\\\\|\\\\\\\\s*(\\\\\\\\d+)\"" >> ${tcl_script}
+echo -e "\tif {[regexp -nocase -line \$pattern \$util_str -> used total]} {" >> ${tcl_script}
+echo -e "\t\treturn [list \$used \$total]" >> ${tcl_script}
+echo -e "\t} else {" >> ${tcl_script}
+echo -e "\t\treturn [list 0 0]" >> ${tcl_script}
+echo -e "\t}" >> ${tcl_script}
+echo -e "}" >> ${tcl_script}
+echo -e "# Extract resource usage and capacity" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"Slice LUTs\"]      lut_used lut_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"Slice Registers\"] ff_used ff_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"Block RAM Tile\"]  bram_used bram_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"DSPs\"]            dsp_used dsp_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"CLBs\"]            clb_used clb_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"URAM\"]            uram_used uram_total" >> ${tcl_script}
+
+echo -e "set resource_data [list \\" >> ${tcl_script}
+echo -e "\tLUT      \$lut_used   \$lut_total \\" >> ${tcl_script}
+echo -e "\tFF       \$ff_used    \$ff_total \\" >> ${tcl_script}
+echo -e "\tBRAM_18K \$bram_used  \$bram_total \\" >> ${tcl_script}
+echo -e "\tDSP      \$dsp_used   \$dsp_total \\" >> ${tcl_script}
+echo -e "\tCLB      \$clb_used   \$clb_total \\" >> ${tcl_script}
+echo -e "\tURAM     \$uram_used  \$uram_total \\" >> ${tcl_script}
+echo -e "]" >> ${tcl_script}
+
+echo -e "set exceeds_limit false"  >> ${tcl_script}
+
+echo -e "foreach {name used total} \$resource_data {" >> ${tcl_script}
+echo -e "\tputs [format \"%s utilization: %s/%s.\" \$name \$used \$total]" >> ${tcl_script}
+echo -e "\tif {\$used > \$total} {" >> ${tcl_script}
+echo -e "\t\tputs [format \"CRITICAL WARNING: %s usage (%s) exceeds device capacity (%s).\" \$name \$used \$total]" >> ${tcl_script}
+echo -e "\t\tset exceeds_limit true" >> ${tcl_script}
+echo -e "\t}" >> ${tcl_script}
+echo -e "}" >> ${tcl_script}
+
+
+if [ $do_implementation = true ]; then
+    echo -e "if {\$exceeds_limit} {" >> ${tcl_script}
+    echo -e "\tputs \"Implementation will NOT be launched — design exceeds resource limits.\"" >> ${tcl_script}
+    echo -e "} else {" >> ${tcl_script}
+    if [ $do_ooc = true ]; then
+        echo -e "\twrite_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
+        echo -e "\tread_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
+        #https://adaptivesupport.amd.com/s/question/0D52E00006hpKnSSAU/
+        #This does not seem necessary
+        echo -e "\tlink_design -mode out_of_context -quiet" >> ${tcl_script}
+    fi
+    echo -e "\tlaunch_runs impl_1 -quiet" >> ${tcl_script}
+    echo -e "\twait_on_run impl_1" >> ${tcl_script}
+    echo -e "\topen_run impl_1 -name impl_1" >> ${tcl_script}
+
+    echo -e "\tset_property IOB FALSE [all_inputs]" >> ${tcl_script}
+    echo -e "\tset_property IOB FALSE [all_outputs]" >> ${tcl_script}
+
+    echo -e "\treport_utilization -file ${utilization_report_impl}" >> ${tcl_script}
+    echo -e "}" >> ${tcl_script}
+fi
 
 
 if [ $delay_between_registers = true ]; then
@@ -436,41 +485,46 @@ if [ $delay_between_registers = true ]; then
     #echo -e "if {[llength \$paths] == 0} {" >> ${tcl_script}
     #echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
     #echo -e "}" >> ${tcl_script}
-    echo -e "report_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
 else
     echo -e "report_timing -file ${timing_report}" >> ${tcl_script}
 fi
+echo -e "report_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
 
 echo -e "read_xdc -mode out_of_context ${xdc_file}" >> ${tcl_script}
 
-if [ ! -z "${sim_file}" ]; then
+
+if [ $do_simulation = true ]; then
     srcsimfolder="${workdir}/sim_file"
     mkdir -p "${srcsimfolder}"
     cp "${sim_file}" "${srcsimfolder}/"
     local_sim_file="${srcsimfolder}/$(basename ${sim_file})"
-    log "Simulation"
-    echo -e "# For simulation" >> ${tcl_script}
     sdf_file="${workdir}/${project_name}_sdf.sdf"
     verilog_file="${workdir}/${project_name}_verilog.v"
     saif_file="${workdir}/${project_name}_saif.saif"
-    echo -e "write_sdf -file ${sdf_file}" >> ${tcl_script}
-    echo -e "write_verilog -sdf_file ${sdf_file} -mode timesim -sdf_anno true ${verilog_file}" >> ${tcl_script}
-    echo -e "add_files -fileset sim_1 -norecurse ${sdf_file}" >> ${tcl_script}
-    echo -e "add_files -fileset sim_1 -norecurse ${verilog_file}" >> ${tcl_script}
-    echo -e "add_files -fileset sim_1 -norecurse ${local_sim_file}" >> ${tcl_script}
     entity_simulation=$(get_last_entity "${local_sim_file}")
-    echo -e "set_property top ${entity_simulation} [get_filesets sim_1]" >> ${tcl_script}
-    echo -e "set_property TARGET_SIMULATOR XSim [get_filesets sim_1]" >> ${tcl_script}
-    echo -e "launch_simulation -simset [get_filesets sim_1] -mode \"post-implementation\" -type timing" >> ${tcl_script}
-    echo -e "restart" >> ${tcl_script}
-    echo -e "open_saif ${saif_file}" >> ${tcl_script}
-    echo -e "log_saif [get_object]" >> ${tcl_script}
-    echo -e "run 100000 ns" >> ${tcl_script}
-    echo -e "close_saif" >> ${tcl_script}
-    echo -e "read_saif ${saif_file}" >> ${tcl_script}
+    log "Simulation"
+    echo -e "if {\$exceeds_limit} {" >> ${tcl_script}
+    echo -e "\tputs \"Simulation will NOT be launched — design exceeds resource limits.\"" >> ${tcl_script}
+    echo -e "} else {" >> ${tcl_script}
+    echo -e "\t# For simulation" >> ${tcl_script}
+    echo -e "\twrite_sdf -file ${sdf_file}" >> ${tcl_script}
+    echo -e "\twrite_verilog -sdf_file ${sdf_file} -mode timesim -sdf_anno true ${verilog_file}" >> ${tcl_script}
+    echo -e "\tadd_files -fileset sim_1 -norecurse ${sdf_file}" >> ${tcl_script}
+    echo -e "\tadd_files -fileset sim_1 -norecurse ${verilog_file}" >> ${tcl_script}
+    echo -e "\tadd_files -fileset sim_1 -norecurse ${local_sim_file}" >> ${tcl_script}
+    echo -e "\tset_property top ${entity_simulation} [get_filesets sim_1]" >> ${tcl_script}
+    echo -e "\tset_property TARGET_SIMULATOR XSim [get_filesets sim_1]" >> ${tcl_script}
+    echo -e "\tlaunch_simulation -simset [get_filesets sim_1] -mode \"post-implementation\" -type timing" >> ${tcl_script}
+    echo -e "\trestart" >> ${tcl_script}
+    echo -e "\topen_saif ${saif_file}" >> ${tcl_script}
+    echo -e "\tlog_saif [get_object]" >> ${tcl_script}
+    echo -e "\trun 100000 ns" >> ${tcl_script}
+    echo -e "\tclose_saif" >> ${tcl_script}
+    echo -e "\tread_saif ${saif_file}" >> ${tcl_script}
+    echo -e "}" >> ${tcl_script}
 fi
-
 echo -e "report_power -file ${power_report}" >> ${tcl_script}
+
 
 if [ $do_not_run = true ]; then
     cd "${basedir}"
@@ -490,38 +544,51 @@ if [ $retVal -ne 0 ]; then
         echo -e "Vivado errored"
         exit 1
     fi
-else
-    cat ${utilization_report} >> ${vivado_output_file}
-    cat ${timing_report} >> ${vivado_output_file}
-    if [ -f "${pulse_report}" ]; then
-        cat ${pulse_report} >> ${vivado_output_file}
+fi
+
+
+implementation_done=false
+simulation_done=false
+utilization_report="${utilization_report_synth}"
+if [ -f "${utilization_report_impl}" ]; then
+    implementation_done=true
+    utilization_report="${utilization_report_impl}"
+    if [ $do_simulation = true ]; then
+        simulation_done=true
     fi
-    cat ${power_report} >> ${vivado_output_file}
-    if [ $verbose = true ]; then
-        log "Utilization report:"
-        cat ${utilization_report}
-        log "Timing report:"
-        cat ${timing_report}
-        if [ -f "${pulse_report}" ]; then
-            log "Pulse report:"
-            cat ${pulse_report}
-        fi
+fi
+cat ${utilization_report} >> ${vivado_output_file}
+cat ${timing_report} >> ${vivado_output_file}
+if [ -f "${pulse_report}" ]; then
+    cat ${pulse_report} >> ${vivado_output_file}
+fi
+cat ${power_report} >> ${vivado_output_file}
+if [ $verbose = true ]; then
+    log "Utilization report:"
+    cat ${utilization_report}
+    log "Timing report:"
+    cat ${timing_report}
+    if [ -f "${pulse_report}" ]; then
+        log "Pulse report:"
+        cat ${pulse_report}
     fi
 fi
 
 
 if [ ! -f "${results_file}" ]; then
-    echo "Project name;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/O (dyn)" > $results_file
+    echo "Project name;Impl;Sim;LUTs;FFs;DSPs;data path delay;Total On-Chip Power (W);Device Static (W);Dynamic (W); Clocks (dyn); Logic (dyn); Signals (dyn);i DSPs; I/O (dyn)" > $results_file
 fi
 
 # Project name
 echo -ne "${project_name};" >> ${results_file}
+echo -ne "${implementation_done};" >> ${results_file}
+echo -ne "${simulation_done};" >> ${results_file}
 
 # LUTs
 echo -ne $(grep -m 1 "Slice LUTs" ${utilization_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # FF
-echo -ne $(grep -m 1 "Slice Registers" $utilization_report | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 "Slice Registers" ${utilization_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # DSPs
 echo -ne $(grep -m 1 "DSPs  " ${utilization_report} | awk '{print $4}') >> ${results_file}
