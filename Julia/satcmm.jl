@@ -9,7 +9,6 @@ end
 
 function satcmmcall(satcmm_cmd::String; kwargs...)
     filename = tempname()
-    # satcmm_cmd *= " > $(filename)"
     argv = Vector{String}(string.(split(satcmm_cmd)))
     satcmm_success = true
     open(filename, "w") do fileout
@@ -28,9 +27,6 @@ function satcmm(C::Vector{Int}; kwargs...)
         @warn "satcmm failed to produce an adder graph"
         return AdderGraph()
     end
-    # s = split(str_result, "\n")
-    # addercost = length(s)-1
-    # return addercost, 0
     s = split(str_result, "\n")
     addergraph = read_addergraph(String(s[2][14:end]))
     return addergraph
