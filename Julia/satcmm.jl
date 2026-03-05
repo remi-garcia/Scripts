@@ -4,7 +4,7 @@
 using AdderGraphs
 
 function generate_satcmm_cmd(v::Vector{Int}; satcmm_right_shifts::Bool=true, satcmm_normalize_adder_graph::Bool=true, satcmm_max_num_adders::Int=0, satcmm_word_size::Int=0, satcmm_threads::Int=1, timelimit::T=0.0, kwargs...) where T <: Real
-    return "sat_cmm $(join(v, ";")) allow_post_adder_right_shift=$(Int(satcmm_right_shifts)) $(satcmm_max_num_adders > 0 ? "max_num_adders=$(satcmm_max_num_adders)" : "") $(satcmm_word_size > 0 ? "define_solver_word_size=$(satcmm_word_size)" : "") threads=$(satcmm_threads) $(timelimit > 0 ? "timeout=$(timelimit)" : "") normalize_adder_graph=$(Int(satcmm_normalize_adder_graph))"
+    return "satcmm $(join(v, ";")) allow_post_adder_right_shift=$(Int(satcmm_right_shifts)) $(satcmm_max_num_adders > 0 ? "max_num_adders=$(satcmm_max_num_adders)" : "") $(satcmm_word_size > 0 ? "define_solver_word_size=$(satcmm_word_size)" : "") threads=$(satcmm_threads) $(timelimit > 0 ? "timeout=$(timelimit)" : "") normalize_adder_graph=$(Int(satcmm_normalize_adder_graph))"
 end
 
 function satcmmcall(satcmm_cmd::String; kwargs...)
