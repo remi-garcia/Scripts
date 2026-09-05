@@ -44,6 +44,9 @@ show_help()
     echo "d     delay_registers     Get delay between registers (ignore io)."
     echo "s                         File for simulation."
     echo "bs                        File for behavioral simulation."
+    # echo "      input_s             Input file for simulation."
+    # echo "      input_bs            Input file for behavioral simulation."
+    # echo "      output_bs           Input file for behavioral simulation."
     echo "      ooc_entity=entity   Entity to implement in ooc mode."
     echo
     echo "t     only_tcl            Do not run vivado, just prepare the project."
@@ -371,6 +374,8 @@ if [ ! -z "${bsim_file}" ]; then
     log "Behavioral simulation"
     echo -e "# For behavioral simulation" >> ${tcl_script}
     echo -e "create_fileset -simset bsim_1" >> ${tcl_script}
+    # echo -e "set_property generic "input_file=../data/file.input" [get_filesets bsim_1]" >> ${tcl_script}
+    # echo -e "set_property generic "output_file=../data/file.output" [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "add_files -fileset bsim_1 -norecurse ${local_bsim_file}" >> ${tcl_script}
     entity_bsimulation=$(get_last_entity "${local_bsim_file}")
     echo -e "set_property top ${entity_bsimulation} [get_filesets bsim_1]" >> ${tcl_script}
