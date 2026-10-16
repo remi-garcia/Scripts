@@ -606,14 +606,20 @@ echo -ne ";" >> ${results_file}
 #    echo -ne "ns" >> ${results_file}
 #fi
 timing_delay=`echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}')`
-timing_delay=${timing_delay::-2}
+timing_delay=${timing_delay%ns}
 pulse_delay=`echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}')`
-if (( $(echo "${timing_delay} > ${pulse_delay}" | bc -l) )); then
-    echo -ne "${timing_delay}" >> ${results_file}
+if [ -z "${pulse_delay}" ]; then
+    delay=${timing_delay}
+elif [ -z "${timing_delay}" ]; then
+    delay=${pulse_delay}
+elif (( $(echo "${timing_delay} > ${pulse_delay}" | bc -l) )); then
+    delay=${timing_delay}
 else
-    echo -ne "${pulse_delay}" >> ${results_file}
+    delay=${pulse_delay}
 fi
-echo -ne "ns" >> ${results_file}
+if [ -n "${delay}" ]; then
+    echo -ne "${delay}ns" >> ${results_file}
+fi
 echo -ne ";" >> ${results_file}
 # Power
 # total power
