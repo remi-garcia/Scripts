@@ -402,8 +402,8 @@ echo -e "\t\treturn [list 0 0]" >> ${tcl_script}
 echo -e "\t}" >> ${tcl_script}
 echo -e "}" >> ${tcl_script}
 echo -e "# Extract resource usage and capacity" >> ${tcl_script}
-echo -e "lassign [extract_used_and_total \$util_str \"Slice LUTs\"]      lut_used lut_total" >> ${tcl_script}
-echo -e "lassign [extract_used_and_total \$util_str \"Slice Registers\"] ff_used ff_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"(?:Slice|CLB) LUTs\"]      lut_used lut_total" >> ${tcl_script}
+echo -e "lassign [extract_used_and_total \$util_str \"(?:Slice|CLB) Registers\"] ff_used ff_total" >> ${tcl_script}
 echo -e "lassign [extract_used_and_total \$util_str \"Block RAM Tile\"]  bram_used bram_total" >> ${tcl_script}
 echo -e "lassign [extract_used_and_total \$util_str \"DSPs\"]            dsp_used dsp_total" >> ${tcl_script}
 echo -e "lassign [extract_used_and_total \$util_str \"CLBs\"]            clb_used clb_total" >> ${tcl_script}
@@ -552,10 +552,10 @@ echo -ne "${implementation_done};" >> ${results_file}
 echo -ne "${simulation_done};" >> ${results_file}
 
 # LUTs
-echo -ne $(grep -m 1 "Slice LUTs" ${utilization_report} | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 -E "(Slice|CLB) LUTs" ${utilization_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # FF
-echo -ne $(grep -m 1 "Slice Registers" ${utilization_report} | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 -E "(Slice|CLB) Registers" ${utilization_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # DSPs
 echo -ne $(grep -m 1 "DSPs  " ${utilization_report} | awk '{print $4}') >> ${results_file}
