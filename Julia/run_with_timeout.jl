@@ -6,16 +6,16 @@ function run_with_timeout(command; timelimit::T=0.0, sleepstep::S=0.1, kwargs...
         cmd = run(ignorestatus(command); wait=true)
         return success(cmd)
     end
-        cmd = run(pipeline(command; stdout = stdout); wait=false)
+    cmd = run(pipeline(command; stdout = stdout); wait=false)
     start_time = time_ns()
     while (time_ns()-start_time)*1e-9 < timelimit
         if !process_running(cmd)
-                        return success(cmd)
+            return success(cmd)
         end
         sleep(sleepstep)
     end
     if !process_running(cmd)
-                return success(cmd)
+        return success(cmd)
     end
     #kill(cmd) # Kill does not kill subprocesses
     curr_pid = getpid(cmd)
@@ -28,9 +28,7 @@ function run_with_timeout(command; timelimit::T=0.0, sleepstep::S=0.1, kwargs...
         # For RPAG
         kill(cmd)
     end
-    if process_running(cmd)
-        sleep(0.1)
-    end
-    @assert !process_running(cmd)
+    kill(cmd, Base.SIGKILL)
+    wait(cmd)
     return false
 end
