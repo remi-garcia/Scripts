@@ -7,7 +7,7 @@ function generate_satcmm_cmd(v::Vector{Int}; satcmm_right_shifts::Bool=true, sat
     return "satcmm $(join(v, ";")) allow_post_adder_right_shift=$(Int(satcmm_right_shifts)) $(satcmm_max_num_adders > 0 ? "max_num_adders=$(satcmm_max_num_adders)" : "") $(satcmm_word_size > 0 ? "define_solver_word_size=$(satcmm_word_size)" : "") threads=$(satcmm_threads) $(timelimit > 0 ? "timeout=$(timelimit)" : "") normalize_adder_graph=$(Int(satcmm_normalize_adder_graph))"
 end
 
-function satcmmcall(satcmm_cmd::String; kwargs...)
+function satcmmcall(satcmm_cmd::String)
     filename = tempname()
     argv = Vector{String}(string.(split(satcmm_cmd)))
     satcmm_success = true
@@ -24,7 +24,7 @@ end
 
 
 function satcmm(C::Vector{Int}; flag_optimal::Vector{Int}=Vector{Int}([0]), kwargs...)
-    str_result, satcmm_success = satcmmcall(generate_satcmm_cmd(C; kwargs...); kwargs...)
+    str_result, satcmm_success = satcmmcall(generate_satcmm_cmd(C; kwargs...))
     if !satcmm_success
         @warn "satcmm failed to produce an adder graph"
         return AdderGraph()

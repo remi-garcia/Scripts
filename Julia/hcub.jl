@@ -13,7 +13,6 @@ end
 
 function hcubcall(hcub_cmd::String; kwargs...)
     filename = tempname()
-    # hcub_cmd *= " > $(filename)"
     argv = Vector{String}(string.(split(hcub_cmd)))
     hcub_success = true
     open(filename, "w") do fileout
@@ -31,9 +30,6 @@ function hcub(C::Vector{Int}; kwargs...)
         @warn "hcub failed to produce an adder graph"
         return AdderGraph()
     end
-    # s = split(str_result, "\n")
-    # addercost = length(s)-1
-    # return addercost, 0
     addergraph = read_hcub_output(str_result, C)
     return addergraph
 end

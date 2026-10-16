@@ -17,7 +17,6 @@ function run_with_timeout(command; timelimit::T=0.0, sleepstep::S=0.1, kwargs...
     if !process_running(cmd)
         return success(cmd)
     end
-    #kill(cmd) # Kill does not kill subprocesses
     curr_pid = getpid(cmd)
     killcmd = "pkill -P $(curr_pid)"
     argv = Vector{String}(string.(split(killcmd)))

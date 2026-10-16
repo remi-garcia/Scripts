@@ -1,13 +1,5 @@
 using JuMP
 
-import JuMP.all_constraints
-function all_constraints(model::Model)
-    cstr = Vector{ConstraintRef}()
-    for (F, S) in list_of_constraint_types(model)
-        append!(cstr, all_constraints(model, F, S))
-    end
-    return cstr
-end
 function all_constraints_affexpr(model::Model)
     cstr = Vector{ConstraintRef}()
     for (F, S) in list_of_constraint_types(model)
@@ -50,7 +42,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
         partial_sum_is_integer = true
 
         # first aux: sum of first two terms
-        if partial_sum_is_integer && all(is_integral_term, pairs[1:2])
+        if all(is_integral_term, pairs[1:2])
             aux[1] = @variable(model, integer=true, base_name="$(base)__1")
         else
             aux[1] = @variable(model, base_name="$(base)__1")  # continuous
