@@ -87,7 +87,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
 end
 
 
-function bigM_to_indicator!(model::Model; prefix::String="ind")
+function bigM_to_indicator!(model::Model; prefix::String="ind", max_binaries::Int=8)
     # Collect linear constraints
     targets = all_constraints_affexpr(model)
 
@@ -105,7 +105,7 @@ function bigM_to_indicator!(model::Model; prefix::String="ind")
         bin_in_cst = filter(x->is_binary(x[2]), pairs)
         nobin_in_cst = filter(x->!is_binary(x[2]), pairs)
         nb_binvars = length(bin_in_cst)
-        if nb_binvars == 0
+        if nb_binvars == 0 || isempty(nobin_in_cst) || nb_binvars > max_binaries
             continue
         end
         aux = Vector{Vector{VariableRef}}(undef, nb_binvars)
