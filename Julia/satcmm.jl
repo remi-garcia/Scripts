@@ -30,8 +30,14 @@ function satcmm(C::Vector{Int}; flag_optimal::Vector{Int}=Vector{Int}([0]), kwar
         return AdderGraph()
     end
     s = split(str_result, "\n")
-    addergraph = read_addergraph(string(s[end-3][14:end]))
-    flag_optimal[1] = parse(Int, string(s[end-2][end:end]))
+    i = findfirst(startswith("Adder graph: "), s)
+    j = findfirst(startswith("# Add optimal = "), s)
+    if isnothing(i) || isnothing(j)
+        @warn "satcmm failed to produce an adder graph"
+        return AdderGraph()
+    end
+    addergraph = read_addergraph(string(chopprefix(s[i], "Adder graph: ")))
+    flag_optimal[1] = parse(Int, chopprefix(s[j], "# Add optimal = "))
     return addergraph
 end
 
