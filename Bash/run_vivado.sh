@@ -457,7 +457,9 @@ if [ $delay_between_registers = true ]; then
 else
     echo -e "report_timing -file ${timing_report}" >> ${tcl_script}
 fi
-echo -e "report_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
+echo -e "if {[llength [get_cells -quiet]] > 0} {" >> ${tcl_script}
+echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
+echo -e "}" >> ${tcl_script}
 
 
 if [ $do_simulation = true ]; then
