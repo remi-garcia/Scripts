@@ -30,24 +30,21 @@ delete_after=true
 show_help()
 {
     # Display Help
-    echo "Syntax: run_vivado [-h|v|p|part|i|ooc|f|d|s|bs] -- vhdl_files"
+    echo "Syntax: run_vivado --vhdl=file --part=part [-h|v|p|avhdl|i|ooc|ooc_entity|f|d|s|bs|t|r|k]"
     echo "options:"
     echo "h     help                Print this help."
     echo "v     verbose             Verbose mode."
     echo "p     project=name        Project name (default: ${project_name})."
-    echo "vhdl=file                 Main VHDL file."
-    echo "avhdl=file                Additional VHDL files."
-    echo "      part=part           Part name (default: none)."
+    echo "vhdl  vhdl=file           Main VHDL file (required)."
+    echo "avhdl avhdl=file          Additional VHDL file, can be repeated."
+    echo "      part=part           Part name (required)."
     echo "i     implement           Do implementation (default: synthesis only)."
     echo "ooc                       Out of context implementation."
-    echo "f     frequency           Frequency (default: ${frequency}MHz)."
+    echo "      ooc_entity=entity   Entity to implement in ooc mode, can be repeated."
+    echo "f     frequency=MHz       Frequency (default: ${frequency}MHz)."
     echo "d     delay_registers     Get delay between registers (ignore io)."
-    echo "s                         File for simulation."
-    echo "bs                        File for behavioral simulation."
-    # echo "      input_s             Input file for simulation."
-    # echo "      input_bs            Input file for behavioral simulation."
-    # echo "      output_bs           Input file for behavioral simulation."
-    echo "      ooc_entity=entity   Entity to implement in ooc mode."
+    echo "s=file                    Testbench for post-implementation simulation, needs -i."
+    echo "bs=file                   Testbench for behavioral simulation."
     echo
     echo "t     only_tcl            Do not run vivado, just prepare the project."
     echo "r     read_results=file   Read vivado results and write them (default file: $(basename ${results_file}))."
@@ -99,7 +96,7 @@ while :; do
                 project_name=$2
                 shift
             else
-                die 'ERROR: "--project_name" requires a non-empty option argument.'
+                die 'ERROR: "--project" requires a non-empty option argument.'
             fi
             ;;
         -p=?*|--project=?*)
@@ -127,14 +124,14 @@ while :; do
                 additional_vhdl_files+=($(realpath "$2"))
                 shift
             else
-                die 'ERROR: "--vhdl" requires a non-empty option argument.'
+                die 'ERROR: "--avhdl" requires a non-empty option argument.'
             fi
             ;;
         -avhdl=?*|--avhdl=?*)
             additional_vhdl_files+=($(realpath "${1#*=}")) # Delete everything up to "=" and assign the remainder.
             ;;
-        -avhdl=|--avhdl=)         # Handle the case of an empty --vhdl=
-            die 'ERROR: "--vhdl" requires a non-empty option argument.'
+        -avhdl=|--avhdl=)         # Handle the case of an empty --avhdl=
+            die 'ERROR: "--avhdl" requires a non-empty option argument.'
             ;;
         --part)       # Takes an option argument; ensure it has been specified.
             if [ "$2" ]; then
@@ -265,6 +262,8 @@ log "Ignored remaining args=\"${remaining_args}\""
 if [ ! -z "${sim_file}" ]; then
     if [ $do_implementation = true ]; then
         do_simulation=true
+    else
+        printf 'WARN: -s requires -i, simulation skipped\n' >&2
     fi
 fi
 
@@ -308,10 +307,10 @@ fi
 mkdir -p "${workdir}"
 srcfiles="${workdir}/src_files"
 mkdir -p "${srcfiles}"
-cp "$(realpath "${main_vhdl_file}")" "${srcfiles}/"
+cp "${main_vhdl_file}" "${srcfiles}/"
 local_main_file="${srcfiles}/$(basename ${main_vhdl_file})"
 for curr_vhdlfile in "${additional_vhdl_files[@]}"; do
-    cp "$(realpath "${curr_vhdlfile}")" "${srcfiles}/"
+    cp "${curr_vhdlfile}" "${srcfiles}/"
 done
 cd "${workdir}"
 xdc_file="${workdir}/clock.xdc"
@@ -349,8 +348,6 @@ if [ ! -z "${bsim_file}" ]; then
     log "Behavioral simulation"
     echo -e "# For behavioral simulation" >> ${tcl_script}
     echo -e "create_fileset -simset bsim_1" >> ${tcl_script}
-    # echo -e "set_property generic "input_file=../data/file.input" [get_filesets bsim_1]" >> ${tcl_script}
-    # echo -e "set_property generic "output_file=../data/file.output" [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "add_files -fileset bsim_1 -norecurse ${local_bsim_file}" >> ${tcl_script}
     write_find_top ${local_bsim_file} bsim_top >> ${tcl_script}
     echo -e "set_property top \$bsim_top [get_filesets bsim_1]" >> ${tcl_script}
@@ -359,7 +356,6 @@ if [ ! -z "${bsim_file}" ]; then
     echo -e "launch_simulation -simset [get_filesets bsim_1] -mode \"behavioral\"" >> ${tcl_script}
     echo -e "restart" >> ${tcl_script}
     echo -e "run all" >> ${tcl_script}
-    echo -e "set simError 0" >> ${tcl_script}
     echo -e "set simError [get_value -radix unsigned errorCounter]" >> ${tcl_script}
     echo -e "if { \$simError != 0 } {" >> ${tcl_script}
     echo -e "\tputs \"Error in simulation\"" >> ${tcl_script}
@@ -385,7 +381,6 @@ pulse_report="${reports_folder}/pulse.rpt"
 
 
 echo -e "update_compile_order -fileset sources_1" >> ${tcl_script}
-#echo -e "synth_design -mode out_of_context -global_retiming on" >> ${tcl_script}
 echo -e "set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_context} -objects [get_runs synth_1]" >> ${tcl_script}
 echo -e "launch_runs synth_1 -jobs 6" >> ${tcl_script}
 echo -e "wait_on_run synth_1" >> ${tcl_script}
@@ -459,18 +454,10 @@ fi
 
 if [ $delay_between_registers = true ]; then
     echo -e "report_timing -file ${timing_report} -from [all_registers] -to [all_registers]" >> ${tcl_script}
-    #https://adaptivesupport.amd.com/s/question/0D54U00008KxsUuSAJ/
-    #https://adaptivesupport.amd.com/s/question/0D52E00006hpZKRSA2/
-    #echo -e "set paths [get_timing_paths -from [all_registers] -to [all_registers]]" >> ${tcl_script}
-    #echo -e "if {[llength \$paths] == 0} {" >> ${tcl_script}
-    #echo -e "\treport_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
-    #echo -e "}" >> ${tcl_script}
 else
     echo -e "report_timing -file ${timing_report}" >> ${tcl_script}
 fi
 echo -e "report_pulse_width -file ${pulse_report} -min_period -cells [get_cells]" >> ${tcl_script}
-
-echo -e "read_xdc -mode out_of_context ${xdc_file}" >> ${tcl_script}
 
 
 if [ $do_simulation = true ]; then
@@ -574,12 +561,6 @@ echo -ne ";" >> ${results_file}
 echo -ne $(grep -m 1 "DSPs  " ${utilization_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 # Delay
-#if [ ! -f "${pulse_report}" ]; then
-#    echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}') >> ${results_file}
-#else
-#    echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}') >> ${results_file}
-#    echo -ne "ns" >> ${results_file}
-#fi
 timing_delay=`echo -ne $(grep -m 1 "Data Path Delay" ${timing_report} | awk '{print $4}')`
 timing_delay=${timing_delay%ns}
 pulse_delay=`echo -ne $(grep -m 1 "Min Period" ${pulse_report} | awk '{print $6}')`
