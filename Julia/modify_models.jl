@@ -18,6 +18,8 @@ function all_constraints_affexpr(model::Model)
     return cstr
 end
 
+const LinearSet = Union{MOI.LessThan{Float64}, MOI.GreaterThan{Float64}, MOI.EqualTo{Float64}, MOI.Interval{Float64}}
+
 # helper: check if term is "integral"
 function is_integral_term(term::Tuple{Float64, VariableRef})
     coeff, var = term
@@ -34,7 +36,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
         f  = co.func
         set = co.set
         terms = f.terms
-        if length(terms) < min_terms
+        if length(terms) < min_terms || !(set isa LinearSet)
             continue
         end
         pairs = [(coeff, var) for (var, coeff) in terms]
@@ -75,13 +77,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
         end
 
         # final inequality/equality
-        if set isa MOI.LessThan{Float64}
-            @constraint(model, aux[end] <= normalized_rhs(cref))
-        elseif set isa MOI.GreaterThan{Float64}
-            @constraint(model, aux[end] >= normalized_rhs(cref))
-        elseif set isa MOI.EqualTo{Float64}
-            @constraint(model, aux[end] == normalized_rhs(cref))
-        end
+        @constraint(model, aux[end] in set)
 
         # delete original
         delete(model, cref)
@@ -99,6 +95,9 @@ function bigM_to_indicator!(model::Model; prefix::String="ind")
         co = constraint_object(cref)
         f  = co.func
         set = co.set
+        if !(set isa LinearSet)
+            continue
+        end
         terms = f.terms
         pairs = [(coeff, var) for (var, coeff) in terms]
         cname = name(cref)
@@ -141,13 +140,7 @@ function bigM_to_indicator!(model::Model; prefix::String="ind")
         end
 
         for j in 1:2^nb_binvars
-            if set isa MOI.LessThan{Float64}
-                @constraint(model, aux[nb_binvars][j] --> {sum(coeff*var for (coeff, var) in nobin_in_cst) + aux_coeffs[nb_binvars][j] <= normalized_rhs(cref)})
-            elseif set isa MOI.GreaterThan{Float64}
-                @constraint(model, aux[nb_binvars][j] --> {sum(coeff*var for (coeff, var) in nobin_in_cst) + aux_coeffs[nb_binvars][j] >= normalized_rhs(cref)})
-            elseif set isa MOI.EqualTo{Float64}
-                @constraint(model, aux[nb_binvars][j] --> {sum(coeff*var for (coeff, var) in nobin_in_cst) + aux_coeffs[nb_binvars][j] == normalized_rhs(cref)})
-            end
+            @constraint(model, aux[nb_binvars][j] --> {sum(coeff*var for (coeff, var) in nobin_in_cst) + aux_coeffs[nb_binvars][j] in set})
         end
 
         # delete original
