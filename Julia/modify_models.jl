@@ -1,5 +1,4 @@
 using JuMP
-import MathOptInterface as MOI
 
 import JuMP.all_constraints
 function all_constraints(model::Model)
@@ -30,7 +29,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
     # Collect linear constraints
     targets = all_constraints_affexpr(model)
 
-    for cref in targets
+    for (c, cref) in enumerate(targets)
         co = constraint_object(cref)
         f  = co.func
         set = co.set
@@ -43,7 +42,7 @@ function decompose_linear_constraints!(model::Model; min_terms::Int=3, prefix::S
         n = length(pairs)
         aux = Vector{VariableRef}(undef, n - 1)
         cname = name(cref)
-        base  = isempty(cname) ? prefix : "$(prefix)__$(cname)"
+        base  = isempty(cname) ? "$(prefix)_$(c)" : "$(prefix)__$(cname)"
 
         # --- Build chain with partial-sum integrality ---
         partial_sum_is_integer = true
@@ -96,14 +95,14 @@ function bigM_to_indicator!(model::Model; prefix::String="ind")
     # Collect linear constraints
     targets = all_constraints_affexpr(model)
 
-    for cref in targets
+    for (c, cref) in enumerate(targets)
         co = constraint_object(cref)
         f  = co.func
         set = co.set
         terms = f.terms
         pairs = [(coeff, var) for (var, coeff) in terms]
         cname = name(cref)
-        base  = isempty(cname) ? prefix : "$(prefix)__$(cname)"
+        base  = isempty(cname) ? "$(prefix)_$(c)" : "$(prefix)__$(cname)"
         bin_in_cst = filter(x->is_binary(x[2]), pairs)
         nobin_in_cst = filter(x->!is_binary(x[2]), pairs)
         nb_binvars = length(bin_in_cst)
