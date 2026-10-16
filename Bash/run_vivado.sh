@@ -68,37 +68,14 @@ log() {
     fi
 }
 
-
-get_last_entity() {
-    echo -e $(echo -e $(grep entity $1 | tail -2 | head -1) | awk '{print $2}')
-}
-
-get_insig_last_entity() {
-    local first_line=$(tac "$1" | awk -v nb_lines=$(wc -l < $1) '/entity /{print nb_lines-FNR+1; exit}')
-    local last_line=$(tac "$1" | awk -v nb_lines=$(wc -l < $1) '/entity;/{print nb_lines-FNR+1; exit}')
-
-    #echo -e "first: ${first_line}"
-    #echo -e "last: ${last_line}"
-    #echo -e $(awk -v s="$first_line" -v e="$last_line" 'NR>1*s&&NR<1*e' $1)
-    
-    local lines=$(awk -v s="$first_line" -v e="$last_line" 'NR>1*s&&NR<1*e' $1)
-    local insig_lines=$(echo -e "${lines}" | sed 's/;/\n/g' | grep -E -i ':\s*in')
-    local insig=$(echo -e "${insig_lines}" | sed 's/\s*\:.*//g' | cat | awk 'NF>=1{print $NF}')
-    echo -e "${insig}"
-}
-
-get_outsig_last_entity() {
-    local first_line=$(tac "$1" | awk -v nb_lines=$(wc -l < $1) '/entity /{print nb_lines-FNR+1; exit}')
-    local last_line=$(tac "$1" | awk -v nb_lines=$(wc -l < $1) '/entity;/{print nb_lines-FNR+1; exit}')
-
-    #echo -e "first: ${first_line}"
-    #echo -e "last: ${last_line}"
-    #echo -e $(awk -v s="$first_line" -v e="$last_line" 'NR>1*s&&NR<1*e' $1)
-    
-    local lines=$(awk -v s="$first_line" -v e="$last_line" 'NR>1*s&&NR<1*e' $1)
-    local outsig_lines=$(echo -e "${lines}" | sed 's/;/\n/g' | grep -E -i ':\s*out')
-    local outsig=$(echo -e "${outsig_lines}" | sed 's/\s*\:.*//g' | cat | awk 'NF>=1{print $NF}')
-    echo -e "${outsig}"
+# find_top sorts its candidates by name: keep the one declared last in the file
+write_find_top() {
+    local entities=$(grep -ioP '^\s*entity\s+\K\w+(?=\s+is\b)' "$1" | tr '\n' ' ')
+    echo -e "set candidates [find_top -files $1]"
+    echo -e "foreach e {${entities}} {"
+    echo -e "\tset i [lsearch -nocase \$candidates \$e]"
+    echo -e "\tif {\$i >= 0} {set $2 [lindex \$candidates \$i]}"
+    echo -e "}"
 }
 
 
@@ -344,10 +321,8 @@ half_period=$(echo "scale=2; ${period}/2.0" | bc -l)
 log "\tperiod: ${period}"
 log "\thalf_period: ${half_period}"
 echo -e "create_clock -name clk -period ${period} -waveform {0.000 ${half_period}} [get_ports clk]" >> ${xdc_file}
-insig=$(get_insig_last_entity ${local_main_file})
-echo "${insig}" | while IFS= read -r curr_insig ; do echo -e "set_input_delay -clock [get_clocks clk] 0 [get_ports ${curr_insig}]" >> ${xdc_file}; done
-outsig=$(get_outsig_last_entity ${local_main_file})
-echo "${outsig}" | while IFS= read -r curr_outsig ; do echo -e "set_output_delay -clock [get_clocks clk] 0 [get_ports ${curr_outsig}]" >> ${xdc_file}; done
+echo -e "set_input_delay -clock [get_clocks clk] 0 [get_ports -filter {DIRECTION != OUT && NAME != clk}]" >> ${xdc_file}
+echo -e "set_output_delay -clock [get_clocks clk] 0 [all_outputs]" >> ${xdc_file}
 
 
 
@@ -361,8 +336,8 @@ for curr_srcfile in "${srcfiles}"/*; do
         echo -e "add_files -fileset sources_1 -norecurse ${curr_srcfile}" >> ${tcl_script}
     fi
 done
-main_entity=$(get_last_entity "${local_main_file}")
-echo -e "set_property top ${main_entity} [get_filesets sources_1]" >> ${tcl_script}
+write_find_top ${local_main_file} top_entity >> ${tcl_script}
+echo -e "set_property top \$top_entity [get_filesets sources_1]" >> ${tcl_script}
 echo -e "read_xdc -mode out_of_context ${xdc_file}" >> ${tcl_script}
 
 
@@ -377,8 +352,8 @@ if [ ! -z "${bsim_file}" ]; then
     # echo -e "set_property generic "input_file=../data/file.input" [get_filesets bsim_1]" >> ${tcl_script}
     # echo -e "set_property generic "output_file=../data/file.output" [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "add_files -fileset bsim_1 -norecurse ${local_bsim_file}" >> ${tcl_script}
-    entity_bsimulation=$(get_last_entity "${local_bsim_file}")
-    echo -e "set_property top ${entity_bsimulation} [get_filesets bsim_1]" >> ${tcl_script}
+    write_find_top ${local_bsim_file} bsim_top >> ${tcl_script}
+    echo -e "set_property top \$bsim_top [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "set_property TARGET_SIMULATOR XSim [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "set_property -name {xsim.elaborate.xelab.more_options} -value {-timeprecision_vhdl 1ns} -objects [get_filesets bsim_1]" >> ${tcl_script}
     echo -e "launch_simulation -simset [get_filesets bsim_1] -mode \"behavioral\"" >> ${tcl_script}
@@ -464,8 +439,8 @@ if [ $do_implementation = true ]; then
     echo -e "\tputs \"Implementation will NOT be launched — design exceeds resource limits.\"" >> ${tcl_script}
     echo -e "} else {" >> ${tcl_script}
     if [ $do_ooc = true ]; then
-        echo -e "\twrite_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
-        echo -e "\tread_edif ${workdir}/${main_entity}.edf" >> ${tcl_script}
+        echo -e "\twrite_edif ${workdir}/\$top_entity.edf" >> ${tcl_script}
+        echo -e "\tread_edif ${workdir}/\$top_entity.edf" >> ${tcl_script}
         #https://adaptivesupport.amd.com/s/question/0D52E00006hpKnSSAU/
         #This does not seem necessary
         echo -e "\tlink_design -mode out_of_context -quiet" >> ${tcl_script}
@@ -506,7 +481,6 @@ if [ $do_simulation = true ]; then
     sdf_file="${workdir}/${project_name}_sdf.sdf"
     verilog_file="${workdir}/${project_name}_verilog.v"
     saif_file="${workdir}/${project_name}_saif.saif"
-    entity_simulation=$(get_last_entity "${local_sim_file}")
     log "Simulation"
     echo -e "if {\$exceeds_limit} {" >> ${tcl_script}
     echo -e "\tputs \"Simulation will NOT be launched — design exceeds resource limits.\"" >> ${tcl_script}
@@ -517,7 +491,8 @@ if [ $do_simulation = true ]; then
     echo -e "\tadd_files -fileset sim_1 -norecurse ${sdf_file}" >> ${tcl_script}
     echo -e "\tadd_files -fileset sim_1 -norecurse ${verilog_file}" >> ${tcl_script}
     echo -e "\tadd_files -fileset sim_1 -norecurse ${local_sim_file}" >> ${tcl_script}
-    echo -e "\tset_property top ${entity_simulation} [get_filesets sim_1]" >> ${tcl_script}
+    write_find_top ${local_sim_file} sim_top >> ${tcl_script}
+    echo -e "\tset_property top \$sim_top [get_filesets sim_1]" >> ${tcl_script}
     echo -e "\tset_property TARGET_SIMULATOR XSim [get_filesets sim_1]" >> ${tcl_script}
     echo -e "\tlaunch_simulation -simset [get_filesets sim_1] -mode \"post-implementation\" -type timing" >> ${tcl_script}
     echo -e "\trestart" >> ${tcl_script}
