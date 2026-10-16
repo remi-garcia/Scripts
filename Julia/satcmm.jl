@@ -14,7 +14,7 @@ function satcmmcall(satcmm_cmd::String; kwargs...)
     open(filename, "w") do fileout
         redirect_stdout(fileout) do
             redirect_stderr(fileout) do
-                cmd = run(`$(argv)`; wait=true)
+                cmd = run(ignorestatus(`$(argv)`); wait=true)
                 satcmm_success = success(cmd)
             end
         end
