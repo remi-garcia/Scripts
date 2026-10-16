@@ -11,19 +11,9 @@ function generate_rpag_cmd(v::Vector{Int}; file_output::String="", with_register
 end
 
 
-function rpagcall(rpag_cmd::String; file_output::String, use_rpag_lib::Bool=false, kwargs...)
+function rpagcall(rpag_cmd::String; file_output::String, kwargs...)
     argv = Vector{String}(string.(split(rpag_cmd)))
-    rpag_success = true
-    if use_rpag_lib
-        if isempty(Base.Libc.Libdl.find_library("librpag"))
-            @warn "librpag not found"
-            return "", false
-        end
-        ccall((:main, "librpag"), Cint, (Cint, Ptr{Ptr{UInt8}}), length(argv), argv)
-        Base.Libc.flush_cstdio()
-    else
-        rpag_success = run_with_timeout(`$(argv)`; kwargs...)
-    end
+    rpag_success = run_with_timeout(`$(argv)`; kwargs...)
     return read(file_output, String), rpag_success
 end
 
