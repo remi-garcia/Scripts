@@ -595,7 +595,7 @@ echo -ne ";" >> ${results_file}
 echo -ne $(grep -m 1 "Clocks" ${power_report} | awk '{print $4}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 #slice logic
-echo -ne $(grep -m 1 "Slice Logic" ${power_report} | awk '{print $5}') >> ${results_file}
+echo -ne $(grep -m 1 -E "(Slice|CLB) Logic" ${power_report} | awk '{print $5}') >> ${results_file}
 echo -ne ";" >> ${results_file}
 #signals
 echo -ne $(grep -m 1 "Signals" ${power_report} | awk '{print $4}') >> ${results_file}
