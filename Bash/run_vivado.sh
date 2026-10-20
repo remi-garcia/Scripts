@@ -40,7 +40,7 @@ show_help()
     echo "      part=part           Part name (required)."
     echo "i     implement           Do implementation (default: synthesis only)."
     echo "ooc                       Out of context implementation."
-    echo "      ooc_entity=entity   Entity to implement in ooc mode, can be repeated."
+    echo "      ooc_entity=entity   Entity to implement in ooc mode, can be repeated, implies ooc."
     echo "f     frequency=MHz       Frequency (default: ${frequency}MHz)."
     echo "d     delay_registers     Get delay between registers (ignore io)."
     echo "s=file                    Testbench for post-implementation simulation, needs -i."
@@ -201,6 +201,7 @@ while :; do
         --ooc_entity)       # Takes an option argument; ensure it has been specified.
             if [ "$2" ]; then
                 ooc_entities+=($2)
+                do_ooc=true
                 shift
             else
                 die 'ERROR: "--ooc_entity" requires a non-empty option argument.'
@@ -208,6 +209,7 @@ while :; do
             ;;
         --ooc_entity=?*)
             ooc_entities+=(${1#*=}) # Delete everything up to "=" and assign the remainder.
+            do_ooc=true
             ;;
         --ooc_entity=)         # Handle the case of an empty --ooc_entity=
             die 'ERROR: "--ooc_entity" requires a non-empty option argument.'
